@@ -1,30 +1,41 @@
-import cv2
 import glob
 import json
-import os
-import numpy as np
 import logging
-import shutil
+import os
 import random
+import shutil
 
+import click
+import cv2
+import numpy as np
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
 random.seed(123)
 
 
-def get_padded_bbox(contour, image_height: int, image_width: int, pad: int = 4):
+def get_padded_bbox(
+    contour, image_height: int, image_width: int, pad: int = 4
+):
     x1, y1, w, h = cv2.boundingRect(contour)
     x2, y2 = x1 + w, y1 + h
-    new_bbox = np.array([y1 / image_height, x1 / image_width, y2 / image_height, x2 / image_width])
+    new_bbox = np.array(
+        [
+            y1 / image_height,
+            x1 / image_width,
+            y2 / image_height,
+            x2 / image_width,
+        ]
+    )
     new_bbox *= 1024  # needed for paliGemma
     new_bbox = new_bbox.astype(int)
-    paligemma_bbox = np.char.zfill(new_bbox.astype(str), width=pad)  # pad with zeros to the left
+    # pad with zeros to the left
+    paligemma_bbox = np.char.zfill(new_bbox.astype(str), width=pad)
     return paligemma_bbox
 
 
 def format_padded_bbox(bbox):
-    return ''.join([f'<loc{element}>' for element in bbox])
+    return "".join([f"<loc{element}>" for element in bbox])
 
 
 def get_padded_contour(contour, image_height: int, image_width: int):
@@ -32,7 +43,11 @@ def get_padded_contour(contour, image_height: int, image_width: int):
     reshaped_contour = contour.reshape(npoints, 2)
 
     # The multiplication is needed for Paligemma
-    new_cnt = [(coords[1] / image_height * 1024, coords[0] / image_width * 1024) for coords in reshaped_contour]
+    # For segmentation, we need coords = y,x
+    new_cnt = [
+        (coords[1] / image_height * 1024, coords[0] / image_width * 1024)
+        for coords in reshaped_contour
+    ]
     new_cnt = np.array(new_cnt)
     new_cnt = new_cnt.astype(int).flatten()
     paligemma_cnt = np.char.zfill(new_cnt.astype(str), width=3)
@@ -40,14 +55,14 @@ def get_padded_contour(contour, image_height: int, image_width: int):
 
 
 def format_padded_contour(contour):
-    return ''.join([f'<seg{element}>' for element in contour])
+    return "".join([f"<seg{element}>" for element in contour])
 
 
 def create_output_for_paligemma(
-        mask_path: str, mask_name: str, threshold: int, cclass: str, prefix: str
+    mask_path: str, mask_name: str, threshold: int, cclass: str, prefix: str
 ) -> dict:
-    """ Given an image, it creates a dict with the output for paligemma.
-     IMPORTANT: This function assumes the same filename for both images and masks."""
+    """Given an image, it creates a dict with the output for paligemma.
+    IMPORTANT: This function assumes the same filename for both images and masks."""
 
     mask = cv2.imread(os.path.join(mask_path, mask_name))
     mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
@@ -59,39 +74,101 @@ def create_output_for_paligemma(
 
     else:
         # make the mask binary
-        _, mask_binary = cv2.threshold(mask, thresh=threshold, maxval=255, type=cv2.THRESH_BINARY)
+        _, mask_binary = cv2.threshold(
+            mask, thresh=threshold, maxval=255, type=cv2.THRESH_BINARY
+        )
 
         # Get the contours of the mask
-        contours, _ = cv2.findContours(mask_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            mask_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
 
         # get the output for paligemma
         paligemma_output = []
         for counter, contour in enumerate(contours):
-            padded_bbox = get_padded_bbox(contour, image_height=im_height, image_width=im_width)
+            padded_bbox = get_padded_bbox(
+                contour, image_height=im_height, image_width=im_width
+            )
             line_bbox = format_padded_bbox(padded_bbox)
 
-            padded_contour = get_padded_contour(contour, image_height=im_height, image_width=im_width)
+            padded_contour = get_padded_contour(
+                contour, image_height=im_height, image_width=im_width
+            )
             line_contour = format_padded_contour(padded_contour)
 
-            paligemma_output.append(line_bbox + " " + line_contour + " " + cclass)
+            paligemma_output.append(
+                line_bbox + " " + line_contour + " " + cclass
+            )
 
         paligemma_output = "; ".join(paligemma_output)
-        final_output = {"image": mask_name, "prefix": prefix, "suffix": paligemma_output}
+        final_output = {
+            "image": mask_name,
+            "prefix": prefix,
+            "suffix": paligemma_output,
+        }
 
     return final_output
 
 
-if __name__ == "__main__":
-    # parameters
-    data_path = "./data"
-    masks_folder_name = "Masks_cleaned"
-    images_folder_name = "Images_cleaned"
-    output_folder_name = "water_bodies"
-    threshold = 150
-    prefix = "Segment water"
-    class_in_file = "water"
-    train_fraction = 0.85
-
+@click.command()
+@click.option(
+    "--data_path",
+    required=True,
+    type=str,
+    help="The absolute path to the data folder.",
+)
+@click.option(
+    "--masks_folder_name",
+    required=True,
+    type=str,
+    help="The name of the folder with the corrected masks.",
+)
+@click.option(
+    "--images_folder_name",
+    required=True,
+    type=str,
+    help="The name of the folder with the corrected images.",
+)
+@click.option(
+    "--output_folder_name",
+    default="water_bodies",
+    type=str,
+    help="The name of the folder with the output for Paligemma.",
+)
+@click.option(
+    "--threshold",
+    default=150,
+    type=int,
+    help="Threshold for the binary mask. Values larger then this will be tagged as water (255, which is white)",
+)
+@click.option(
+    "--prefix",
+    default="Segment water",
+    type=str,
+    help="The prefix field in the output for Paligemma.",
+)
+@click.option(
+    "--class_in_file",
+    default="water",
+    type=str,
+    help="The class to be segmented.",
+)
+@click.option(
+    "--train_fraction",
+    default=0.85,
+    type=float,
+    help="The fraction of the data to be used for training.",
+)
+def main(
+    data_path,
+    masks_folder_name,
+    images_folder_name,
+    output_folder_name,
+    threshold,
+    prefix,
+    class_in_file,
+    train_fraction,
+):
     # Code
     mask_path = os.path.join(data_path, masks_folder_name)
     image_path = os.path.join(data_path, images_folder_name)
@@ -117,14 +194,18 @@ if __name__ == "__main__":
     assert set(images_train_set).intersection(images_validation_set) == set()
     assert set(images_validation_set).intersection(images_test_set) == set()
 
-    assert len(images_train_set) + len(images_validation_set) + len(images_test_set) == len(masks_names)
+    assert len(images_train_set) + len(images_validation_set) + len(
+        images_test_set
+    ) == len(masks_names)
 
     # create the Paligemma output for each dataset
     dataset_names = ["train", "validation", "test"]
     dataset_images = [images_train_set, images_validation_set, images_test_set]
 
     for dataset, list_images in zip(dataset_names, dataset_images):
-        logging.info(f"Analyzing {len(list_images)} images in the {dataset} dataset...")
+        logging.info(
+            f"Analyzing {len(list_images)} images in the {dataset} dataset..."
+        )
         paligemma_list = []
         for image_name in list_images:
             output_line = create_output_for_paligemma(
@@ -136,21 +217,32 @@ if __name__ == "__main__":
             )
             paligemma_list.append(output_line)
 
-        logging.info(f"Writing the output to {os.path.join(data_path, dataset+'.json')}...")
-        with open(os.path.join(data_path, dataset+'.json'), 'w', encoding='utf-8') as json_file:
+        logging.info(
+            f"Writing the output to {os.path.join(data_path, dataset + '.json')}..."
+        )
+        with open(
+            os.path.join(data_path, dataset + ".json"), "w", encoding="utf-8"
+        ) as json_file:
             for item in paligemma_list:
                 # Convert the string to JSON format and write it to the file
                 json.dump(item, json_file)
                 # Write a newline character
-                json_file.write('\n')
+                json_file.write("\n")
 
     # finally, create the folder that will be used in Collab and move the images and json files
-    logging.info("Creating the folder for usage in Collab and moving info there...")
+    logging.info(
+        "Creating the folder for usage in Collab and moving info there..."
+    )
     os.makedirs(output_path, exist_ok=True)
     shutil.copytree(image_path, output_path, dirs_exist_ok=True)
     for dataset in dataset_names:
-        shutil.move(os.path.join(data_path, dataset + ".json"),
-                    os.path.join(output_path,  dataset + ".json")
-                    )
+        shutil.move(
+            os.path.join(data_path, dataset + ".json"),
+            os.path.join(output_path, dataset + ".json"),
+        )
 
     logging.info("Done!")
+
+
+if __name__ == "__main__":
+    main()
