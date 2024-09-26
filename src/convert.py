@@ -174,6 +174,8 @@ def main(
     image_path = os.path.join(data_path, images_folder_name)
     output_path = os.path.join(data_path, output_folder_name)
 
+    os.makedirs(output_path, exist_ok=True)
+
     masks = glob.glob(os.path.join(mask_path, "*jpg"))
     masks_names = [name.split("/")[-1] for name in masks]
 
@@ -194,9 +196,12 @@ def main(
     assert set(images_train_set).intersection(images_validation_set) == set()
     assert set(images_validation_set).intersection(images_test_set) == set()
 
-    assert len(images_train_set) + len(images_validation_set) + len(
-        images_test_set
-    ) == len(masks_names)
+    total_files = (
+        len(images_train_set)
+        + len(images_validation_set)
+        + len(images_test_set)
+    )
+    assert total_files == len(masks_names)
 
     # create the Paligemma output for each dataset
     dataset_names = ["train", "validation", "test"]
@@ -204,8 +209,10 @@ def main(
 
     for dataset, list_images in zip(dataset_names, dataset_images):
         logging.info(
-            f"Analyzing {len(list_images)} images in the {dataset} dataset..."
+            f"Copy {len(list_images)} images to the {dataset} dataset."
         )
+
+        output_filename = dataset + ".jsonl"
         paligemma_list = []
         for image_name in list_images:
             output_line = create_output_for_paligemma(
@@ -218,29 +225,17 @@ def main(
             paligemma_list.append(output_line)
 
         logging.info(
-            f"Writing the output to {os.path.join(data_path, dataset + '.json')}..."
+            f"Writing the results to {os.path.join(output_path, output_filename)}."
         )
         with open(
-            os.path.join(data_path, dataset + ".json"), "w", encoding="utf-8"
+            os.path.join(output_path, output_filename), "w", encoding="utf-8"
         ) as json_file:
             for item in paligemma_list:
-                # Convert the string to JSON format and write it to the file
                 json.dump(item, json_file)
-                # Write a newline character
                 json_file.write("\n")
 
-    # finally, create the folder that will be used in Collab and move the images and json files
-    logging.info(
-        "Creating the folder for usage in Collab and moving info there..."
-    )
-    os.makedirs(output_path, exist_ok=True)
+    # finally, copy the images to the output folder
     shutil.copytree(image_path, output_path, dirs_exist_ok=True)
-    for dataset in dataset_names:
-        shutil.move(
-            os.path.join(data_path, dataset + ".json"),
-            os.path.join(output_path, dataset + ".json"),
-        )
-
     logging.info("Done!")
 
 
