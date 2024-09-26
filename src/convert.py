@@ -213,6 +213,8 @@ def main(
         )
 
         output_filename = dataset + ".jsonl"
+        full_out_path = os.path.join(output_path, output_filename)
+
         paligemma_list = []
         for image_name in list_images:
             output_line = create_output_for_paligemma(
@@ -224,15 +226,11 @@ def main(
             )
             paligemma_list.append(output_line)
 
-        logging.info(
-            f"Writing the results to {os.path.join(output_path, output_filename)}."
-        )
-        with open(
-            os.path.join(output_path, output_filename), "w", encoding="utf-8"
-        ) as json_file:
+        logging.info(f"Writing the results to {full_out_path}.")
+        with open(full_out_path, "w", encoding="utf-8") as file:
             for item in paligemma_list:
-                json.dump(item, json_file)
-                json_file.write("\n")
+                json.dump(item, file)
+                file.write("\n")
 
     # finally, copy the images to the output folder
     shutil.copytree(image_path, output_path, dirs_exist_ok=True)
