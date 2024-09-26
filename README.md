@@ -1,41 +1,38 @@
 # SegmentWater
-Segmentation of water bodies using PaliGemma: Google's Visual Language Model.
+This repository has Python scripts to create a dataset for Paligemma to segment water in satellite images.
+
+## Prerequisites 
+- Python 3.11 
+- Pipenv
 
 ## General set up and activation of the environment 
-If you become developer of this project, clone this repository first.
+Clone this repository first.
 
-Once the project is cloned, you need to create a virtual environment. To do so,  
-open a terminal and type the following:
-
-```
-$ pipenv install --dev
-```
-
-To  activate the environment, type:
+Once the project is cloned, you need to create and set up a virtual environment. To do so,  
+open a terminal and type the following commands:
 
 ```
-$ pipenv shell
+> pipenv install --dev
+> pipenv shell
+> pre-commit install 
 ```
 
-We want to maintain high quality standards in our code. For this, we use `pre-commit`. To install it 
-in your virtual environment, type:
+This last plugin will facilitate and automate the code formatting.
+
+## Satellite images
+The original dataset is in Kaggle. It can be downloaded from [this link](https://www.kaggle.com/datasets/franciscoescobar/satellite-images-of-water-bodies). 
+
+Since some masks are not correct, I manually selected the correct images. You can read [this blog post]()
+to see how I did it. You can also contact me to obtain the final set of images. 
+
+***IMPORTANT: In the root directory, create a folder called dataset/ where you add the cleaned images and masks, each 
+in its corresponding subfolder.***
+
+## Create a dataset to fine-tune Paligemma
+
+Once the cleaned images and masks are added in the dataset/ folder, you can run the following command 
+to create the dataset used by Paligemma:
 
 ```
-$ pre-commit install 
+> python src/convert.py --data_path=<absolute path to dataset/> --masks_folder_name=<it must be a subfolder of dataset/> --images_folder_name=<it must be a subfolder of dataset/>
 ```
-
-This plugin will facilitate and automate the code formatting.
-
-## Install new packages 
-If you need to install new PyPI packages, run this command:
-```
-$ pipenv install <package-name>
-```
-For more options visit the [pipenv official website](https://pipenv.pypa.io/en/latest/installation/#installing-packages-for-your-project).
-
-
-## Naming convention for the Jupyter Notebooks
-
-To ease collaborative development and versioning of Jupyter notebooks, we are using the following naming convention:
-`number_author'sname_description.ipynb`. For instance, a notebook developed by Carmen that has some EDA on data, can
-have the name `1.CAMB_EDA_enriched_dataset.ipynb`.
