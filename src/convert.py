@@ -15,8 +15,13 @@ random.seed(123)
 
 
 def get_padded_bbox(
-    contour, image_height: int, image_width: int, pad: int = 4
+    contour,
+    image_height: int,
+    image_width: int,
+    new_im_size: int,
+    pad: int = 4,
 ):
+    """new_size is the size of the images in Paligemma"""
     x1, y1, w, h = cv2.boundingRect(contour)
     x2, y2 = x1 + w, y1 + h
     new_bbox = np.array(
@@ -27,7 +32,7 @@ def get_padded_bbox(
             x2 / image_width,
         ]
     )
-    new_bbox *= 1024  # needed for paliGemma
+    new_bbox *= new_im_size  # needed for paliGemma
     new_bbox = new_bbox.astype(int)
     # pad with zeros to the left
     paligemma_bbox = np.char.zfill(new_bbox.astype(str), width=pad)
@@ -38,14 +43,21 @@ def format_padded_bbox(bbox):
     return "".join([f"<loc{element}>" for element in bbox])
 
 
-def get_padded_contour(contour, image_height: int, image_width: int):
+def get_padded_contour(
+    contour, image_height: int, image_width: int, new_im_size: int
+):
     npoints = contour.shape[0]
     reshaped_contour = contour.reshape(npoints, 2)
 
-    # The multiplication is needed for Paligemma
+    # The coordinates normalized to the new size
+    # are: xnorm = x / image_width * new_im_size
+    # and ynorm = y / image_height * new_im_size
     # For segmentation, we need coords = y,x
     new_cnt = [
-        (coords[1] / image_height * 1024, coords[0] / image_width * 1024)
+        (
+            coords[1] / image_height * new_im_size,
+            coords[0] / image_width * new_im_size,
+        )
         for coords in reshaped_contour
     ]
     new_cnt = np.array(new_cnt)
@@ -59,7 +71,12 @@ def format_padded_contour(contour):
 
 
 def create_output_for_paligemma(
-    mask_path: str, mask_name: str, threshold: int, cclass: str, prefix: str
+    mask_path: str,
+    mask_name: str,
+    threshold: int,
+    cclass: str,
+    prefix: str,
+    new_im_size: int,
 ) -> dict:
     """Given an image, it creates a dict with the output for paligemma.
     IMPORTANT: This function assumes the same filename for both images and masks."""
@@ -86,18 +103,24 @@ def create_output_for_paligemma(
         # get the output for paligemma
         paligemma_output = []
         for counter, contour in enumerate(contours):
-            padded_bbox = get_padded_bbox(
-                contour, image_height=im_height, image_width=im_width
-            )
-            line_bbox = format_padded_bbox(padded_bbox)
+            # padded_bbox = get_padded_bbox(
+            #     contour, image_height=im_height, image_width=im_width, new_im_size=new_im_size
+            # )
+            # line_bbox = format_padded_bbox(padded_bbox)
 
             padded_contour = get_padded_contour(
-                contour, image_height=im_height, image_width=im_width
+                contour,
+                image_height=im_height,
+                image_width=im_width,
+                new_im_size=new_im_size,
             )
             line_contour = format_padded_contour(padded_contour)
 
             paligemma_output.append(
-                line_bbox + " " + line_contour + " " + cclass
+                # line_bbox + " " + line_contour + " " + cclass
+                line_contour
+                + " "
+                + cclass
             )
 
         paligemma_output = "; ".join(paligemma_output)
@@ -128,6 +151,12 @@ def create_output_for_paligemma(
     required=True,
     type=str,
     help="The name of the folder with the corrected images.",
+)
+@click.option(
+    "--new_image_size",
+    default=224,
+    type=int,
+    help="The size of the images used in Paligemma.",
 )
 @click.option(
     "--output_folder_name",
@@ -163,6 +192,7 @@ def main(
     data_path,
     masks_folder_name,
     images_folder_name,
+    new_image_size,
     output_folder_name,
     threshold,
     prefix,
@@ -223,6 +253,7 @@ def main(
                 threshold=threshold,
                 cclass=class_in_file,
                 prefix=prefix,
+                new_im_size=new_image_size,
             )
             paligemma_list.append(output_line)
 
