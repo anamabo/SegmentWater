@@ -100,6 +100,7 @@ def create_output_for_paligemma(
     mask_path,
     mask_name: str,
     threshold: int,
+    epsilon: float,
     cclass: str,
     prefix: str,
     new_im_size: int,
@@ -132,7 +133,7 @@ def create_output_for_paligemma(
         approximated_contours = tuple()
         for cnt in contours:
             perimeter = cv2.arcLength(cnt, closed=True)
-            approx = cv2.approxPolyDP(cnt, 0.001 * perimeter, closed=True)
+            approx = cv2.approxPolyDP(cnt, epsilon * perimeter, closed=True)
             approximated_contours += (approx,)
 
         # filter out contours with less than 3 points
@@ -209,6 +210,12 @@ def create_output_for_paligemma(
     help="Threshold for the binary mask. Values larger then this will be tagged as water (255, which is white)",
 )
 @click.option(
+    "--epsilon",
+    default=0.001,
+    type=float,
+    help="threshold used in the contour approxiamtion. The smaller the value, the more points in the contour.",
+)
+@click.option(
     "--prefix",
     default="Segment water",
     type=str,
@@ -233,6 +240,7 @@ def main(
     new_image_size,
     output_folder_name,
     threshold,
+    epsilon,
     prefix,
     class_in_file,
     train_fraction,
@@ -292,6 +300,7 @@ def main(
                 mask_path=mask_path,
                 mask_name=image_name,
                 threshold=threshold,
+                epsilon=epsilon,
                 cclass=class_in_file,
                 prefix=prefix,
                 new_im_size=new_image_size,
