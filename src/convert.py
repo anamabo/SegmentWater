@@ -8,6 +8,7 @@ import shutil
 import click
 import cv2
 import numpy as np
+from matplotlib import pyplot as plt
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
@@ -70,8 +71,33 @@ def format_padded_contour(contour):
     return "".join([f"<seg{element}>" for element in contour])
 
 
+def get_contours_coordinates(ccontours) -> dict:
+    reshaped_cnts = [cnt.reshape(len(cnt), 2) for cnt in ccontours]
+
+    contours_coords = dict()
+    for n, contour in enumerate(reshaped_cnts):
+        flatten_cnt = contour.flatten()
+        xvals = [
+            flatten_cnt[x] for x in range(0, len(flatten_cnt), 2)
+        ]  # even=x
+        yvals = [
+            flatten_cnt[y] for y in range(1, len(flatten_cnt), 2)
+        ]  # odd=y
+        contours_coords[n] = (xvals, yvals)
+    return contours_coords
+
+
+def plot_image_and_contours(image, contour):
+    cnt_dict = get_contours_coordinates(contour)
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+    ax.imshow(image)
+    for _, (x, y) in cnt_dict.items():
+        ax.plot(x, y, "r-")
+    plt.show()
+
+
 def create_output_for_paligemma(
-    mask_path: str,
+    mask_path,
     mask_name: str,
     threshold: int,
     cclass: str,
@@ -96,13 +122,25 @@ def create_output_for_paligemma(
         )
 
         # Get the contours of the mask
+        # tuple(ndarray(cnt points, 1, 2),...)
         contours, _ = cv2.findContours(
             mask_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
 
+        # Reduce the number of points in the contours
+        # This is needed to reduce the tokens for Paligemma
+        approximated_contours = tuple()
+        for cnt in contours:
+            perimeter = cv2.arcLength(cnt, closed=True)
+            approx = cv2.approxPolyDP(cnt, 0.001 * perimeter, closed=True)
+            approximated_contours += (approx,)
+
+        # filter out contours with less than 3 points
+        contours_r = [cnt for cnt in approximated_contours if len(cnt) >= 3]
+
         # get the output for paligemma
         paligemma_output = []
-        for counter, contour in enumerate(contours):
+        for counter, contour in enumerate(contours_r):
             # padded_bbox = get_padded_bbox(
             #     contour, image_height=im_height, image_width=im_width, new_im_size=new_im_size
             # )
@@ -206,15 +244,21 @@ def main(
 
     os.makedirs(output_path, exist_ok=True)
 
-    masks = glob.glob(os.path.join(mask_path, "*jpg"))
-    masks_names = [name.split("/")[-1] for name in masks]
+    # masks = glob.glob(os.path.join(mask_path, "*jpg"))
+    # masks_names = [name.split("/")[-1] for name in masks]
 
-    test_fraction = 0.05  # just a small fraction for testing
+    # Read the txt file with the list of images
+    with open(os.path.join(data_path, "selected_images.txt"), "r") as file:
+        masks_names = file.read().splitlines()
+
+    test_fraction = 0.02  # just a small fraction for testing
     validation_fraction = 1 - train_fraction - test_fraction
 
     nsamples = len(masks_names)
     train_nsamples = int(nsamples * train_fraction)
     validation_nsamples = int(nsamples * validation_fraction)
+    # train_nsamples = 150
+    # validation_nsamples = 50
 
     # select the images for each set
     images_train_set = random.sample(masks_names, train_nsamples)
@@ -242,9 +286,6 @@ def main(
             f"Copy {len(list_images)} images to the {dataset} dataset."
         )
 
-        output_filename = dataset + ".jsonl"
-        full_out_path = os.path.join(output_path, output_filename)
-
         paligemma_list = []
         for image_name in list_images:
             output_line = create_output_for_paligemma(
@@ -257,6 +298,8 @@ def main(
             )
             paligemma_list.append(output_line)
 
+        output_filename = dataset + ".jsonl"
+        full_out_path = os.path.join(output_path, output_filename)
         logging.info(f"Writing the results to {full_out_path}.")
         with open(full_out_path, "w", encoding="utf-8") as file:
             for item in paligemma_list:
