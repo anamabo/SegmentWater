@@ -98,6 +98,7 @@ outputs
 /reports/figures/*
 Pipfile.lock
 /data/
+!data/selected_images.txt
 /data/work_in_progress/*
 data/
 /models/*

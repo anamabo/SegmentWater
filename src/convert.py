@@ -213,7 +213,7 @@ def create_output_for_paligemma(
     "--epsilon",
     default=0.001,
     type=float,
-    help="threshold used in the contour approxiamtion. The smaller the value, the more points in the contour.",
+    help="threshold used in the contour approximation. The smaller the value, the more points in the contour.",
 )
 @click.option(
     "--prefix",

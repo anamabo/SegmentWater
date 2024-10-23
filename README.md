@@ -25,7 +25,7 @@ The original dataset is in Kaggle. It can be downloaded from [this link](https:/
 Since some masks are not correct, I manually selected the correct images. You can read [this blog post]()
 to see how I did it. You can also contact me to obtain the final set of images. 
 
-***IMPORTANT: In the root directory, create a folder called dataset/ where you add the cleaned images and masks, each 
+***IMPORTANT: In the root directory, create a folder called data/ where you add the cleaned images and masks, each 
 in its corresponding subfolder.***
 
 ## Create a dataset to fine-tune Paligemma
@@ -34,5 +34,5 @@ Once the cleaned images and masks are added in the dataset/ folder, you can run 
 to create the dataset used by Paligemma:
 
 ```
-> python src/convert.py --data_path=<absolute path to dataset/> --masks_folder_name=<it must be a subfolder of dataset/> --images_folder_name=<it must be a subfolder of dataset/>
+> python src/convert.py --data_path=<absolute path to data/> --masks_folder_name=<it must be a subfolder of data/> --images_folder_name=<it must be a subfolder of data/>
 ```

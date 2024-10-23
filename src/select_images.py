@@ -44,9 +44,14 @@ def plot_image_and_contours(image_arr, mask_arr, contour):
 
 
 if __name__ == "__main__":
-    data_path = "./data"
-    masks_folder_name = "Masks_cleaned"
-    images_folder_name = "Images_cleaned"
+    data_path = "./data"  # Path to the data folder. (Change if needed).
+    masks_folder_name = (
+        "Masks_cleaned"  # Folder containing the masks. (Change if needed).
+    )
+    images_folder_name = (
+        "Images_cleaned"  # folder containing the images. (Change if needed).
+    )
+
     # Code
     mask_path = os.path.join(data_path, masks_folder_name)
     image_path = os.path.join(data_path, images_folder_name)
